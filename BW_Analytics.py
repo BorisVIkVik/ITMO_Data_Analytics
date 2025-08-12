@@ -11,7 +11,7 @@ from datetime import timedelta
 
 st.set_page_config(layout="wide", page_title="Fraud vs Non-Fraud — Grid Layout + Filter")
 
-st.title("Мошен. (красный) и не-мошен. (синий) — 2 графика: города и vendor_type")
+st.title("Свободное исследование данных BW")
 
 default_path = "d:/Work/ITMO_CONTEST/transaction_fraud_data.parquet"
 file_path = st.sidebar.text_input("Путь к Parquet:", value=default_path)
@@ -65,10 +65,8 @@ selected_column = st.selectbox("Выберите vendor_type для отобра
     options=cols,
     index=None)
 if selected_column != None:
-
-    # print('here')
     with st.spinner("Читаю данные...", show_time=True):
-        df_full = read_data(file_path, [selected_column, 'timestamp', 'is_fraud', 'amount'])
+        df_full = read_data(file_path, [selected_column, 'timestamp', 'is_fraud', 'amount', 'customer_id'])
     df_filtered = df_full[(df_full["timestamp"] >= time_range[0]) & (df_full["timestamp"] <= time_range[1])]
     # # --- Сохраняем/инициализируем выбранные vendor_type ---
     all_types = sorted(df_filtered[selected_column].dropna().unique())
@@ -107,11 +105,6 @@ if selected_column != None:
     pivot_city = aggregate_by(selected_column, df_filtered, agg_by)
 
 
-
-
-
-
-
     def build_bar_figure(pivot_df, agg_type):
         if pivot_df.empty:
             return go.Figure()
@@ -121,7 +114,7 @@ if selected_column != None:
                                 var_name="type", value_name="count")
         fig = px.bar(
             df_plot,
-            x=pivot_df.columns[0],  # 'city' или 'vendor_type'
+            x=pivot_df.columns[0], 
             y="count",
             color="type",
             color_discrete_map={"fraud": "red", "non_fraud": "blue"},
@@ -143,11 +136,11 @@ if selected_column != None:
     st.plotly_chart(fig_city, use_container_width=True)
 
     vendor_for_hourly = st.sidebar.selectbox(
-        "Выберите vendor_type для почасового графика",
+        "Выберите " + selected_column + " для почасового графика",
         options=all_types
     )
 
-    if st.sidebar.button("Показать почасовой график"):
+    if st.sidebar.button("Показать почасовой график", use_container_width=True):
         # Фильтруем данные по выбранному vendor_type
         df_v = df_filtered[df_filtered[selected_column] == vendor_for_hourly].copy()
         if df_v.empty:
@@ -178,3 +171,47 @@ if selected_column != None:
 
             st.plotly_chart(fig_hourly, use_container_width=True)
 
+    st.sidebar.markdown("---")
+    if st.sidebar.button("Kmeans", use_container_width=True):
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from sklearn.cluster import KMeans
+        # Генерация случайных данных
+        np.random.seed(42)
+        X = df_filtered[['amount', 'customer_id']]
+        X['amount'] = X['amount'].astype(int)
+        X['customer_id'] = X['customer_id'].str[5:]
+        X['customer_id'] = X['customer_id'].astype(int)
+        X = X.to_numpy()
+
+        kmeans = KMeans(n_clusters=2)
+        kmeans.fit(X)
+        # Получаем результаты кластеризации
+        labels = kmeans.labels_ # Массив меток кластеров
+        centroids = kmeans.cluster_centers_ # Центры кластеров
+        fig = go.Figure()
+        # 1. Добавляем точки данных с цветами по кластерам
+        fig.add_trace(go.Scatter(
+            x=X[:, 0],
+            y=X[:, 1],
+            mode='markers',
+            marker=dict(
+                color=labels,
+                size=8,
+                colorscale=['orange', 'purple'],
+                opacity=0.7
+            ),
+            text=df_filtered['is_fraud'],
+            hoverinfo="x+y+text",
+            name='Точки данных'
+        ))
+
+        fig.update_layout(
+            title='Результаты кластеризации методом K-means',
+            xaxis_title='Сумма транзакции',
+            yaxis_title='ID клиента',
+            legend_title='Легенда',
+            hovermode='closest'
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
