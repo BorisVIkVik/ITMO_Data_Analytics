@@ -75,7 +75,7 @@ if selected_column != None:
 
     # print('here')
     with st.spinner("Читаю данные...", show_time=True):
-        df_full = read_data(file_path, [selected_column, 'timestamp', 'is_fraud', 'amount'])
+        df_full = read_data(file_path, [selected_column, 'timestamp', 'is_fraud', 'amount', 'customer_id'])
     df_filtered = df_full[(df_full["timestamp"] >= time_range[0]) & (df_full["timestamp"] <= time_range[1])]
     # # --- Сохраняем/инициализируем выбранные vendor_type ---
     all_types = sorted(df_filtered[selected_column].dropna().unique())
@@ -279,11 +279,11 @@ if selected_column != None:
 
     # Выбор одного vendor_type для почасового анализа
     vendor_for_hourly = st.sidebar.selectbox(
-        "Выберите vendor_type для почасового графика",
+        "Выберите " + selected_column + " для почасового графика",
         options=all_types
     )
 
-    if st.sidebar.button("Показать почасовой график"):
+    if st.sidebar.button("Показать почасовой график", use_container_width=True):
         # Фильтруем данные по выбранному vendor_type
         df_v = df_filtered[df_filtered[selected_column] == vendor_for_hourly].copy()
         if df_v.empty:
@@ -314,48 +314,58 @@ if selected_column != None:
 
             st.plotly_chart(fig_hourly, use_container_width=True)
 
-    # st.sidebar.markdown("---")
-    # if st.sidebar.button("Kmeans"):
-    #     import numpy as np
-    #     import matplotlib.pyplot as plt
-    #     from sklearn.cluster import KMeans
-    #     # Генерация случайных данных
-    #     np.random.seed(42)
-    #     X = df_filtered[['amount', 'customer_id']]
-    #     X['customer_id'] = X['customer_id'].str[5:]
-    #     # for i in range(0, len(X['customer_id'])):
-    #     #     X.loc[i, 'customer_id'] = X['customer_id'][5:]
-    #     #     # X['customer_id'] = 
-    #     print(X)
-    #     kmeans = KMeans(n_clusters=3)
-    #     print('lol')
-    #     kmeans.fit(X)
-    #     # Получаем результаты кластеризации
-    #     labels = kmeans.labels_ # Массив меток кластеров
-    #     centroids = kmeans.cluster_centers_ # Центры кластеров
+    st.sidebar.markdown("---")
+    if st.sidebar.button("Kmeans", use_container_width=True):
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from sklearn.cluster import KMeans
+        # Генерация случайных данных
+        np.random.seed(42)
+        X = df_filtered[['amount', 'customer_id']]
+        X['amount'] = X['amount'].astype(int)
+        X['customer_id'] = X['customer_id'].str[5:]
+        X['customer_id'] = X['customer_id'].astype(int)
+        # for i in range(0, len(X['customer_id'])):
+        #     X.loc[i, 'customer_id'] = X['customer_id'][5:]
+        #     # X['customer_id'] = 
+        X = X.to_numpy()
+        print(X)
 
-    #     fig = go.Figure()
-        
-    #     # 1. Добавляем точки данных с цветами по кластерам
-    #     fig.add_trace(go.Scatter(
-    #         x=X['amount'],
-    #         y=X['customer_id'],
-    #         mode='markers',
-    #         marker=dict(
-    #             color=labels,
-    #             size=8,
-    #             colorscale='Viridis',
-    #             opacity=0.7
-    #         ),
-    #         name='Точки данных'
-    #     ))
+        kmeans = KMeans(n_clusters=2)
+        print('lol')
+        kmeans.fit(X)
+        # Получаем результаты кластеризации
+        labels = kmeans.labels_ # Массив меток кластеров
+        centroids = kmeans.cluster_centers_ # Центры кластеров
+        print('kek')
+        fig = go.Figure()
+        # kok = np.hsplit(X, 0)
+        print(X[:, 1])
+        # hover_texts = [
+            # f"{df_filtered['amount']}<br>Fraud: {df_filtered['customer_id']}<br>Non-fraud: {df_filtered['is_fraud']}"
+        # ]
+        # 1. Добавляем точки данных с цветами по кластерам
+        fig.add_trace(go.Scatter(
+            x=X[:, 0],
+            y=X[:, 1],
+            mode='markers',
+            marker=dict(
+                color=labels,
+                size=8,
+                colorscale=['red', 'blue'],
+                opacity=0.7
+            ),
+            text=df_filtered['is_fraud'],
+            hoverinfo="x+y+text",
+            name='Точки данных'
+        ))
 
-    #     fig.update_layout(
-    #         title='Результаты кластеризации методом K-means',
-    #         xaxis_title='Сумма транзакции',
-    #         yaxis_title='ID клиента',
-    #         legend_title='Легенда',
-    #         hovermode='closest'
-    #     )
+        fig.update_layout(
+            title='Результаты кластеризации методом K-means',
+            xaxis_title='Сумма транзакции',
+            yaxis_title='ID клиента',
+            legend_title='Легенда',
+            hovermode='closest'
+        )
 
-    #     st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True)
